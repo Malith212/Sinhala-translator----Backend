@@ -1,0 +1,23 @@
+# Environment
+.env
+.env.example
+.env.local
+
+# Virtual environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# Generated cache/index files
+cache/*.index
+cache/*.pkl
+
+# Editor/OS
+.DS_Store
+.vscode/
+.idea/
