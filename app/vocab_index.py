@@ -23,7 +23,7 @@ from sentence_transformers import SentenceTransformer
 
 from . import config
 
-
+#Just defines the shape of one glossary entry: {english, sinhala}
 class VocabEntry(TypedDict):
     english: str
     sinhala: str
@@ -40,13 +40,14 @@ class VocabTier:
     def search(self, query_embedding: np.ndarray, top_k: int) -> list[VocabEntry]:
         distances, indices = self.index.search(query_embedding, top_k)
         return [self.meta[i] for i in indices[0] if i != -1]
+    
 
-
+#Loads the sentence-transformer model (all-MiniLM-L6-v2)
 @lru_cache(maxsize=1)
 def get_embedding_model() -> SentenceTransformer:
     return SentenceTransformer(config.EMBEDDING_MODEL_NAME)
 
-
+#Reads a CSV file into a list of {english, sinhala} dictionaries
 def _load_vocab_csv(path) -> list[VocabEntry]:
     df = pd.read_csv(path)
     return [
@@ -54,7 +55,10 @@ def _load_vocab_csv(path) -> list[VocabEntry]:
         for _, row in df.iterrows()
     ]
 
-
+# Loads a CSV
+# Converts every English entry into an embedding (vector)
+# Builds a FAISS index from those embeddings
+# Saves the index + entries to disk (cache) so it doesn't need to rebuild next time
 def _build_and_cache_tier(name: str, csv_path) -> VocabTier:
     entries = _load_vocab_csv(csv_path)
     model = get_embedding_model()
@@ -72,7 +76,8 @@ def _build_and_cache_tier(name: str, csv_path) -> VocabTier:
 
     return VocabTier(name, index, entries)
 
-
+# Checks if a cached index already exists on disk
+# If yes, loads it directly (fast) instead of rebuilding
 def _load_cached_tier(name: str) -> Optional[VocabTier]:
     index_path = config.CACHE_DIR / f"{name}.index"
     meta_path = config.CACHE_DIR / f"{name}_meta.pkl"
@@ -83,14 +88,16 @@ def _load_cached_tier(name: str) -> Optional[VocabTier]:
         meta = pickle.load(f)
     return VocabTier(name, index, meta)
 
-
+# Tries to load from cache first
+# If no cache exists, builds it fresh and caches it
 def load_or_build_tier(name: str, csv_path) -> VocabTier:
     cached = _load_cached_tier(name)
     if cached is not None:
         return cached
     return _build_and_cache_tier(name, csv_path)
 
-
+# Loads all 3 tiers (word, phrase, sentence) together when the app starts
+# Each tier is either loaded from cache or built fresh
 class VocabIndices:
     """Holds all three loaded tiers, ready for retrieval."""
 
@@ -102,7 +109,8 @@ class VocabIndices:
 
 _indices: Optional[VocabIndices] = None
 
-
+# Returns the loaded VocabIndices object
+# Only builds/loads it once (_indices stored globally), reused for every future call
 def get_indices() -> VocabIndices:
     """Lazily builds (or loads cached) indices on first use, then reuses them."""
     global _indices
