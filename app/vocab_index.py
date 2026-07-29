@@ -1,16 +1,3 @@
-"""
-Vocabulary Index Module
-
-Loads the word / phrase / sentence vocabulary CSVs and builds a FAISS
-similarity index for each tier, exactly mirroring the notebook's approach:
-each English entry is embedded with sentence-transformers, and FAISS does
-nearest-neighbour search at translation time to retrieve relevant
-translation-memory examples for the prompt.
-
-Indices are cached to disk after the first build (embedding ~3,300 entries
-takes a while) so subsequent server restarts are instant.
-"""
-
 import json
 import pickle
 from functools import lru_cache

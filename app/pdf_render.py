@@ -1,14 +1,3 @@
-"""
-Renders translated Sinhala text as a downloadable PDF, matching the
-notebook's weasyprint-based rendering step.
-
-This is optional: weasyprint needs system libraries (Pango, Cairo -- see
-README) that aren't always available in every environment. It's imported
-lazily here so the rest of the API works fine even if weasyprint or the
-Sinhala font file isn't installed; only this specific endpoint will fail
-with a clear error in that case.
-"""
-
 from . import config
 
 
