@@ -8,14 +8,31 @@ from . import config
 from .chunking import chunk_text
 from .models import (
     ChunkTranslation,
+    EnforcementSummary,
     HealthResponse,
+    RequiredTerm,
+    TranslateCompareResponse,
     TranslateDocumentResponse,
+    TranslateEnforcedResponse,
     TranslateTextRequest,
     TranslateTextResponse,
 )
 from .pdf_extract import extract_text_from_pdf_bytes
-from .translator import translate
+from .translator import translate, translate_with_enforcement
 from .vocab_index import get_indices
+
+
+def _to_enforcement_summary(report) -> EnforcementSummary:
+    return EnforcementSummary(
+        required_count=report.required_count,
+        satisfied_count_first_pass=report.satisfied_count_first_pass,
+        satisfied_count_final=report.satisfied_count_final,
+        retried=report.retried,
+        required_terms=[RequiredTerm(**t) for t in report.required_terms],
+        missing_after_first_pass=[RequiredTerm(**t) for t in report.missing_after_first_pass],
+        missing_after_retry=[RequiredTerm(**t) for t in report.missing_after_retry],
+    )
+
 
 app = FastAPI(
     title="PDPA Sinhala Translator API",
@@ -60,6 +77,47 @@ def translate_text(request: TranslateTextRequest) -> TranslateTextResponse:
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
     return TranslateTextResponse(original_text=request.text, translated_text=translated)
+
+
+@app.post("/translate/enforced", response_model=TranslateEnforcedResponse)
+def translate_text_enforced(request: TranslateTextRequest) -> TranslateEnforcedResponse:
+    """Same as /translate, but with deterministic terminology enforcement:
+    detects required glossary terms in the source, forces them into the
+    prompt, verifies they appear in the output, and retries once with
+    corrective feedback if any are missing. See app/enforcement.py."""
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="text must not be empty.")
+    try:
+        translated, report = translate_with_enforcement(request.text)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return TranslateEnforcedResponse(
+        original_text=request.text,
+        translated_text=translated,
+        enforcement=_to_enforcement_summary(report),
+    )
+
+
+@app.post("/translate/compare", response_model=TranslateCompareResponse)
+def translate_text_compare(request: TranslateTextRequest) -> TranslateCompareResponse:
+    """Runs BOTH the plain (unenforced) and enforced translation paths on the
+    same input and returns both outputs side by side, along with the
+    enforcement report. Useful for ablation testing -- demonstrating whether
+    term enforcement measurably improves terminology consistency over
+    baseline retrieval-augmented translation."""
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="text must not be empty.")
+    try:
+        baseline = translate(request.text)
+        enforced, report = translate_with_enforcement(request.text)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return TranslateCompareResponse(
+        original_text=request.text,
+        baseline_translation=baseline,
+        enforced_translation=enforced,
+        enforcement=_to_enforcement_summary(report),
+    )
 
 
 @app.post("/translate-document", response_model=TranslateDocumentResponse)
