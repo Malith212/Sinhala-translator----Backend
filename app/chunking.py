@@ -4,20 +4,6 @@ from . import config
 
 
 def chunk_text(text: str) -> list[str]:
-    """Splits a long document into chunks that end on a sentence boundary.
-
-    Instead of cutting at a hard character limit (which can slice a
-    sentence in half, forcing us to use overlap as a safety net), we:
-      1. Walk through the text sentence by sentence.
-      2. Keep adding sentences to the current chunk.
-      3. Once the chunk passes config.CHUNK_SIZE, close it off at that
-         sentence boundary and start a new chunk.
-
-    This means chunks are variable-length (usually a bit over
-    CHUNK_SIZE), but no sentence -- and therefore no content -- ever
-    appears in two chunks. No overlap needed, no de-duplication needed
-    at merge time.
-    """
     if not text or not text.strip():
         return []
 
